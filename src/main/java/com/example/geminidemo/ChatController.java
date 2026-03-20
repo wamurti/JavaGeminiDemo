@@ -1,5 +1,7 @@
 package com.example.geminidemo;
 
+import com.example.geminidemo.Model.MessageToAiModel;
+import com.example.geminidemo.Model.PostModel;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -7,8 +9,10 @@ import org.springframework.web.bind.annotation.*;
 public class ChatController {
 
     private final ChatClient chatClient;
+    private final AiService aiService;
 
-    public ChatController(ChatClient.Builder builder) {
+    public ChatController(ChatClient.Builder builder,AiService aiService) {
+        this.aiService = aiService;
         this.chatClient = builder.build();
     }
 
@@ -20,17 +24,16 @@ public class ChatController {
                 .content();
     }
 
-    @PostMapping("/process")
-    public String processPost(@RequestBody MessageModel incomingPost) {
-        // Hämta befintlig content och lägg till din textsnutt
-        String updatedContent = " - Ditt jobb är att tolka detta meddelande som är riktat till "+incomingPost.getReceiver()+ " genom att avgöra om det är snällt eller elakt, är det elakt svara enbart med blocked, annars svara med godkänd. Meddelande: " +incomingPost.getMessage();
+    @PostMapping("/validate")
+    public String processPost(@RequestBody PostModel incomingPost) {
 
-        // Uppdatera objektet
-        incomingPost.setMessage(updatedContent);
+        MessageToAiModel msg = aiService.mapPostToMessageToAi(incomingPost);
+        aiService.setInstructions(msg,"Ditt jobb är släppa igenom eller blockera meddelanden. Svara enbart ok, annars blocked. Svara i json format! och om du blockerar meddelandet skicka med ett ord som beskriver varför i blockedReason");
+        aiService.setContext(msg,"Släpp igenom allt som inte är uppenbart skräp (spam), obegripligt svammel eller grova personangrepp (könsord/hot osv), även om det är hårt och dömande.");
 
-        // Returnera objektet (Spring gör om det till JSON automatiskt)
+        System.out.println(msg);
         return chatClient.prompt()
-                .user(updatedContent)
+                .user(msg.toString())
                 .call()
                 .content();
     }
